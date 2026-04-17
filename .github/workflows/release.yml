@@ -164,7 +164,8 @@ jobs:
           LINUX_ARM64: ${{ steps.checksums.outputs.linux_arm64 }}
         run: |
           REPO="${{ github.repository }}"
-          TAP_REPO="${REPO}/homebrew-tap"
+          OWNER="${REPO%%/*}"
+          TAP_REPO="${OWNER}/homebrew-tap"
           VERSION="${TAG#v}"
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
