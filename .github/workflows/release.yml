@@ -106,6 +106,7 @@ jobs:
           sha256sum oc-go-cc_* > checksums.txt
           cat checksums.txt
 
+      # GITHUB_TOKEN works here — same repo
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -151,9 +152,10 @@ jobs:
           echo "linux_amd64=$LINUX_AMD64" >> "$GITHUB_OUTPUT"
           echo "linux_arm64=$LINUX_ARM64" >> "$GITHUB_OUTPUT"
 
+      # HOMEBREW_PAT needed here — cross-repo operations
       - name: Update homebrew tap
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT: ${{ secrets.HOMEBREW_PAT }}
           TAG: ${{ needs.release.outputs.tag }}
           VERSION: ${{ needs.release.outputs.tag }}
           DARWIN_ARM64: ${{ steps.checksums.outputs.darwin_arm64 }}
@@ -166,14 +168,8 @@ jobs:
           VERSION="${TAG#v}"
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
-          # Check if the tap repo exists, create if not
-          if ! gh repo view "$TAP_REPO" --json name 2>/dev/null; then
-            echo "Creating homebrew-tap repository..."
-            gh repo create "$TAP_REPO" --public --description "Homebrew tap for oc-go-cc"
-          fi
-
-          # Clone the tap repo
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
+          # Clone the tap repo (created manually as a public repo)
+          git clone "https://x-access-token:${PAT}@github.com/${TAP_REPO}.git" tap-repo
           cd tap-repo
 
           mkdir -p Formula
