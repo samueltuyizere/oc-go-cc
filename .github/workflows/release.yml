@@ -179,11 +179,7 @@ jobs:
           class OcGoCc < Formula
             desc "Proxy Claude Code requests to OpenCode Go API"
             homepage "https://github.com/${REPO}"
-            url "${BASE_URL}/oc-go-cc_darwin-arm64"
             version "${VERSION}"
-            sha256 "${DARWIN_ARM64}"
-
-            depends_on :macos => :arm64_if_intel
 
             on_macos do
               if Hardware::CPU.arm?
@@ -206,10 +202,15 @@ jobs:
             end
 
             def install
-              bin.install "oc-go-cc_darwin-arm64" => "oc-go-cc" if OS.mac? && Hardware::CPU.arm?
-              bin.install "oc-go-cc_darwin-amd64" => "oc-go-cc" if OS.mac? && !Hardware::CPU.arm?
-              bin.install "oc-go-cc_linux-amd64" => "oc-go-cc" if OS.linux? && Hardware::CPU.intel?
-              bin.install "oc-go-cc_linux-arm64" => "oc-go-cc" if OS.linux? && !Hardware::CPU.intel?
+              if OS.mac? && Hardware::CPU.arm?
+                bin.install "oc-go-cc_darwin-arm64" => "oc-go-cc"
+              elsif OS.mac?
+                bin.install "oc-go-cc_darwin-amd64" => "oc-go-cc"
+              elsif OS.linux? && Hardware::CPU.intel?
+                bin.install "oc-go-cc_linux-amd64" => "oc-go-cc"
+              else
+                bin.install "oc-go-cc_linux-arm64" => "oc-go-cc"
+              end
             end
 
             def caveats
