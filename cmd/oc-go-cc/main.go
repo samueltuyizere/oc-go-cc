@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"oc-go-cc/internal/config"
@@ -174,8 +175,17 @@ func initCmd() *cobra.Command {
 			configDir := getConfigDir()
 			configPath := filepath.Join(configDir, "config.json")
 
+			// Check if config already exists
 			if _, err := os.Stat(configPath); err == nil {
-				return fmt.Errorf("config file already exists at %s", configPath)
+				// Backup existing config with timestamp
+				timestamp := time.Now().Format("20060102-150405")
+				backupPath := configPath + ".backup." + timestamp
+
+				if err := os.Rename(configPath, backupPath); err != nil {
+					return fmt.Errorf("failed to backup existing config: %w", err)
+				}
+
+				fmt.Printf("Backed up existing config to %s\n", backupPath)
 			}
 
 			if err := os.MkdirAll(configDir, 0755); err != nil {
