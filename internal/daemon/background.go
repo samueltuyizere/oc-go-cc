@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"syscall"
+	"golang.org/x/sys/unix"
 )
 
 // BackgroundOpts are the options passed from the serve command.
@@ -15,13 +15,8 @@ type BackgroundOpts struct {
 	Port       int    // --port flag value, 0 means default
 }
 
-// ForkIntoBackground re-executes the current binary as a detached background process.
+// ForkIntoBackground starts the current binary as a detached background process.
 // The parent process prints the PID and exits. The child continues as a daemon.
-//
-// Strategy: Instead of traditional Unix double-fork (which is fragile in Go due to
-// goroutine state), we re-exec ourselves with a hidden "--_daemonize" flag. This gives
-// the child a clean process state. The child then redirects stdout/stderr to the log
-// file, writes its PID, and starts the server.
 func ForkIntoBackground(opts BackgroundOpts) error {
 	paths, err := DefaultPaths()
 	if err != nil {
@@ -41,20 +36,22 @@ func ForkIntoBackground(opts BackgroundOpts) error {
 		args = append(args, "--port", strconv.Itoa(opts.Port))
 	}
 
-	cmd := exec.Command(paths.BinaryPath, args...)
-	cmd.Env = os.Environ()
-	// Detach from terminal -- create new process group
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-	// Redirect child stdout/stderr to the log file
+	// Open log file for the background process
 	logFile, err := os.OpenFile(paths.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("cannot open log file: %w", err)
 	}
 	defer logFile.Close()
+
+	// Start the process as a daemon
+	cmd := exec.Command(paths.BinaryPath, args...)
+	cmd.Env = os.Environ()
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	// Detach from controlling terminal
+	cmd.SysProcAttr = &unix.SysProcAttr{
+		Setpgid: true,
+	}
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
