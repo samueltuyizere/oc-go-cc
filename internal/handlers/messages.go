@@ -249,7 +249,7 @@ func (h *MessagesHandler) handleStreaming(
 			select {
 			case <-ticker.C:
 				// Send SSE comment (ignored by client but keeps connection alive)
-				fmt.Fprintf(w, ":keepalive\n\n")
+				_, _ = fmt.Fprintf(w, ":keepalive\n\n")
 				if f, ok := w.(http.Flusher); ok {
 					f.Flush()
 				}
@@ -325,7 +325,7 @@ func (h *MessagesHandler) handleStreaming(
 
 		// Proxy the stream: transform OpenAI SSE → Anthropic SSE in real-time
 		if err := h.streamHandler.ProxyStream(rw, streamBody, model.ModelID, clientCtx); err != nil {
-			streamBody.Close()
+			_ = streamBody.Close()
 			cancel()
 			if err == transformer.ErrClientDisconnected {
 				h.logger.Info("client disconnected during stream")
@@ -340,7 +340,7 @@ func (h *MessagesHandler) handleStreaming(
 			continue
 		}
 
-		streamBody.Close()
+		_ = streamBody.Close()
 		cancel()
 		latency := time.Since(streamStart)
 		h.metrics.RecordSuccess(model.ModelID, latency)
@@ -355,16 +355,6 @@ func (h *MessagesHandler) handleStreaming(
 	} else {
 		// Headers already sent - send error as SSE event
 		h.sendStreamError(rw, "all upstream models failed")
-	}
-}
-
-// isClientDisconnected checks if the HTTP client has disconnected.
-func isClientDisconnected(r *http.Request) bool {
-	select {
-	case <-r.Context().Done():
-		return true
-	default:
-		return false
 	}
 }
 
@@ -396,13 +386,6 @@ func replaceModelInRawBody(rawBody json.RawMessage, modelID string) json.RawMess
 	return rawBody
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // handleAnthropicStreaming sends a raw Anthropic request to the Anthropic endpoint.
 func (h *MessagesHandler) handleAnthropicStreaming(
 	ctx context.Context,
@@ -421,7 +404,7 @@ func (h *MessagesHandler) handleAnthropicStreaming(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Copy the response directly (already in Anthropic format)
 	// SSE headers already set by handleStreaming
@@ -452,7 +435,7 @@ func (h *MessagesHandler) sendStreamError(w http.ResponseWriter, message string)
 	}
 
 	data, _ := json.Marshal(errorEvent)
-	fmt.Fprintf(w, "event: error\ndata: %s\n\n", string(data))
+	_, _ = fmt.Fprintf(w, "event: error\ndata: %s\n\n", string(data))
 
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
@@ -500,7 +483,7 @@ func (h *MessagesHandler) handleNonStreaming(
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(responseBody)
+	_, _ = w.Write(responseBody)
 }
 
 // executeAnthropicRequest executes a request to the Anthropic endpoint (for MiniMax models).
@@ -514,7 +497,7 @@ func (h *MessagesHandler) executeAnthropicRequest(
 	if err != nil {
 		return nil, fmt.Errorf("anthropic request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read the response (already in Anthropic format)
 	body, err := io.ReadAll(resp.Body)
@@ -600,5 +583,5 @@ func (h *MessagesHandler) sendError(w http.ResponseWriter, statusCode int, messa
 	w.WriteHeader(statusCode)
 
 	errorResp := transformer.TransformErrorResponse(statusCode, message)
-	json.NewEncoder(w).Encode(errorResp)
+	_ = json.NewEncoder(w).Encode(errorResp)
 }

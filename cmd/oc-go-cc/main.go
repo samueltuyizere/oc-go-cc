@@ -69,7 +69,7 @@ func serveCmd() *cobra.Command {
 
 			// Override config path if provided.
 			if configPath != "" {
-				os.Setenv("OC_GO_CC_CONFIG", configPath)
+				_ = os.Setenv("OC_GO_CC_CONFIG", configPath)
 			}
 
 			cfg, err := config.Load()
@@ -104,14 +104,14 @@ func serveCmd() *cobra.Command {
 					return fmt.Errorf("server is already running (PID %d)", pid)
 				}
 				// Stale PID file, clean up.
-				os.Remove(pidPath)
+				_ = os.Remove(pidPath)
 			}
 
 			// Write PID file.
 			if err := daemon.WritePID(pidPath, os.Getpid()); err != nil {
 				return fmt.Errorf("failed to write PID file: %w", err)
 			}
-			defer os.Remove(pidPath)
+			defer func() { _ = os.Remove(pidPath) }()
 
 			// Create and start server.
 			srv, err := server.NewServer(cfg)
@@ -136,7 +136,7 @@ func serveCmd() *cobra.Command {
 	cmd.Flags().IntVarP(&port, "port", "p", 0, "Override listen port")
 	cmd.Flags().BoolVarP(&background, "background", "b", false, "Run as background daemon")
 	cmd.Flags().BoolVar(&daemonize, "_daemonize", false, "Internal use only")
-	cmd.Flags().MarkHidden("_daemonize")
+	_ = cmd.Flags().MarkHidden("_daemonize")
 
 	return cmd
 }
@@ -158,7 +158,7 @@ func stopCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Sent stop signal to server (PID %d)\n", pid)
-			os.Remove(pidPath)
+			_ = os.Remove(pidPath)
 			return nil
 		},
 	}
@@ -179,7 +179,7 @@ func statusCmd() *cobra.Command {
 
 			if !daemon.IsProcessRunning(pid) {
 				fmt.Println("Server is not running (stale PID file)")
-				os.Remove(pidPath)
+				_ = os.Remove(pidPath)
 				return nil
 			}
 
@@ -235,7 +235,7 @@ func validateCmd() *cobra.Command {
 		Short: "Validate configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if configPath != "" {
-				os.Setenv("OC_GO_CC_CONFIG", configPath)
+				_ = os.Setenv("OC_GO_CC_CONFIG", configPath)
 			}
 
 			cfg, err := config.Load()

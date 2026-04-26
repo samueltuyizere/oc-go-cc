@@ -98,7 +98,7 @@ func StopProcess(pid int) error {
 	}
 
 	// Wait for the process to exit
-	_, err = process.Wait()
+	_, _ = process.Wait()
 	return nil
 }
 

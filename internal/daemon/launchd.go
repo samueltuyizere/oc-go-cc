@@ -104,7 +104,7 @@ func EnableAutostart(configPath string, port int) error {
 	if err != nil {
 		return fmt.Errorf("cannot create plist file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := tmpl.Execute(f, data); err != nil {
 		return fmt.Errorf("cannot render plist: %w", err)
@@ -186,7 +186,7 @@ func loadPlist(plistPath string) error {
 	target := "gui/" + uid + "/" + LaunchAgent
 
 	// Ignore errors from bootout -- it might not be loaded
-	exec.Command("launchctl", "bootout", target).Run()
+	_ = exec.Command("launchctl", "bootout", target).Run()
 	return exec.Command("launchctl", "bootstrap", target, plistPath).Run()
 }
 

@@ -28,13 +28,13 @@ func TestLoadJSON(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	os.Setenv("OC_GO_CC_CONFIG", cfgPath)
-	defer os.Unsetenv("OC_GO_CC_CONFIG")
+	_ = os.Setenv("OC_GO_CC_CONFIG", cfgPath)
+	defer func() { _ = os.Unsetenv("OC_GO_CC_CONFIG") }()
 
 	// Prevent env var API key from overriding test config
 	oldAPIKey := os.Getenv("OC_GO_CC_API_KEY")
-	os.Unsetenv("OC_GO_CC_API_KEY")
-	defer os.Setenv("OC_GO_CC_API_KEY", oldAPIKey)
+	_ = os.Unsetenv("OC_GO_CC_API_KEY")
+	defer func() { _ = os.Setenv("OC_GO_CC_API_KEY", oldAPIKey) }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -73,13 +73,13 @@ func TestLoadMissingAPIKey(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	os.Setenv("OC_GO_CC_CONFIG", cfgPath)
-	defer os.Unsetenv("OC_GO_CC_CONFIG")
+	_ = os.Setenv("OC_GO_CC_CONFIG", cfgPath)
+	defer func() { _ = os.Unsetenv("OC_GO_CC_CONFIG") }()
 
 	// Prevent env var API key from making this test pass incorrectly
 	oldAPIKey := os.Getenv("OC_GO_CC_API_KEY")
-	os.Unsetenv("OC_GO_CC_API_KEY")
-	defer os.Setenv("OC_GO_CC_API_KEY", oldAPIKey)
+	_ = os.Unsetenv("OC_GO_CC_API_KEY")
+	defer func() { _ = os.Setenv("OC_GO_CC_API_KEY", oldAPIKey) }()
 
 	_, err := Load()
 	if err == nil {
@@ -96,19 +96,19 @@ func TestEnvOverrides(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	os.Setenv("OC_GO_CC_CONFIG", cfgPath)
-	os.Setenv("OC_GO_CC_API_KEY", "env-key")
-	os.Setenv("OC_GO_CC_HOST", "env-host")
-	os.Setenv("OC_GO_CC_PORT", "9999")
-	os.Setenv("OC_GO_CC_OPENCODE_URL", "https://env-url/v1")
-	os.Setenv("OC_GO_CC_LOG_LEVEL", "warn")
+	_ = os.Setenv("OC_GO_CC_CONFIG", cfgPath)
+	_ = os.Setenv("OC_GO_CC_API_KEY", "env-key")
+	_ = os.Setenv("OC_GO_CC_HOST", "env-host")
+	_ = os.Setenv("OC_GO_CC_PORT", "9999")
+	_ = os.Setenv("OC_GO_CC_OPENCODE_URL", "https://env-url/v1")
+	_ = os.Setenv("OC_GO_CC_LOG_LEVEL", "warn")
 	defer func() {
-		os.Unsetenv("OC_GO_CC_CONFIG")
-		os.Unsetenv("OC_GO_CC_API_KEY")
-		os.Unsetenv("OC_GO_CC_HOST")
-		os.Unsetenv("OC_GO_CC_PORT")
-		os.Unsetenv("OC_GO_CC_OPENCODE_URL")
-		os.Unsetenv("OC_GO_CC_LOG_LEVEL")
+		_ = os.Unsetenv("OC_GO_CC_CONFIG")
+		_ = os.Unsetenv("OC_GO_CC_API_KEY")
+		_ = os.Unsetenv("OC_GO_CC_HOST")
+		_ = os.Unsetenv("OC_GO_CC_PORT")
+		_ = os.Unsetenv("OC_GO_CC_OPENCODE_URL")
+		_ = os.Unsetenv("OC_GO_CC_LOG_LEVEL")
 	}()
 
 	cfg, err := Load()
@@ -143,8 +143,8 @@ func TestDefaults(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	os.Setenv("OC_GO_CC_CONFIG", cfgPath)
-	defer os.Unsetenv("OC_GO_CC_CONFIG")
+	_ = os.Setenv("OC_GO_CC_CONFIG", cfgPath)
+	defer func() { _ = os.Unsetenv("OC_GO_CC_CONFIG") }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -169,8 +169,8 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestInterpolateEnvVars(t *testing.T) {
-	os.Setenv("TEST_SECRET", "my-secret-value")
-	defer os.Unsetenv("TEST_SECRET")
+	_ = os.Setenv("TEST_SECRET", "my-secret-value")
+	defer func() { _ = os.Unsetenv("TEST_SECRET") }()
 
 	input := `{"api_key": "${TEST_SECRET}", "host": "${UNSET_VAR:-fallback}"}`
 	result := interpolateEnvVars(input)

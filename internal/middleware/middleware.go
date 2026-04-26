@@ -19,7 +19,6 @@ import (
 type RequestDeduplicator struct {
 	inFlight    sync.Map // request hash → context cancel func
 	dedupWindow time.Duration
-	mu          sync.Mutex
 	logger      *slog.Logger
 }
 

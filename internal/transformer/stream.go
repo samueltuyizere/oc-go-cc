@@ -106,7 +106,9 @@ func (h *StreamHandler) ProxyStream(
 			// Process any remaining data in buffer
 			if lineBuf.Len() > 0 {
 				line := lineBuf.String()
-				h.processSSELine(w, flusher, line, &contentIndex, &contentStarted, originalModel)
+				if err := h.processSSELine(w, flusher, line, &contentIndex, &contentStarted, originalModel); err != nil {
+					return err
+				}
 			}
 			break
 		}

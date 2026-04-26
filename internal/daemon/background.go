@@ -39,7 +39,7 @@ func ForkIntoBackground(opts BackgroundOpts) error {
 	if err != nil {
 		return fmt.Errorf("cannot open log file: %w", err)
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	// Use nohup to detach from terminal - works cross-platform
 	cmd := exec.Command("nohup", append([]string{paths.BinaryPath}, args...)...)
