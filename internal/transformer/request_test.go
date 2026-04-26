@@ -90,6 +90,46 @@ func TestTransformRequestIncludesEmptyReasoningContentForToolCalls(t *testing.T)
 	}
 }
 
+func TestTransformRequestSerializesAssistantToolCallContent(t *testing.T) {
+	transformer := NewRequestTransformer()
+
+	req := &types.MessageRequest{
+		Model:     "claude-test",
+		MaxTokens: 256,
+		Messages: []types.Message{
+			{
+				Role: "assistant",
+				Content: json.RawMessage(`[
+					{"type":"tool_use","id":"toolu_456","name":"search_docs","input":{"query":"figma api"}}
+				]`),
+			},
+		},
+	}
+
+	openaiReq, err := transformer.TransformRequest(req, config.ModelConfig{ModelID: "deepseek-v4-pro"})
+	if err != nil {
+		t.Fatalf("TransformRequest() error = %v", err)
+	}
+
+	body, err := json.Marshal(openaiReq)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var payload struct {
+		Messages []map[string]json.RawMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if _, ok := payload.Messages[0]["content"]; !ok {
+		t.Fatalf("serialized assistant tool-call message omitted content: %s", body)
+	}
+	if got, want := string(payload.Messages[0]["content"]), `""`; got != want {
+		t.Fatalf("serialized content = %s, want %s", got, want)
+	}
+}
+
 func TestTransformRequestAppliesReasoningEffortAndThinking(t *testing.T) {
 	transformer := NewRequestTransformer()
 

@@ -24,7 +24,7 @@ type ChatCompletionRequest struct {
 // ChatMessage represents a single message in the conversation.
 type ChatMessage struct {
 	Role             string        `json:"role"`
-	Content          string        `json:"content,omitempty"`
+	Content          string        `json:"content"`
 	ReasoningContent *string       `json:"reasoning_content,omitempty"`
 	ToolCalls        []ToolCall    `json:"tool_calls,omitempty"`
 	Name             string        `json:"name,omitempty"`
