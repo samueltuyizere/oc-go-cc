@@ -58,6 +58,12 @@ func (t *RequestTransformer) TransformRequest(
 		maxTokens := model.MaxTokens
 		openaiReq.MaxTokens = &maxTokens
 	}
+	if model.ReasoningEffort != "" {
+		openaiReq.ReasoningEffort = &model.ReasoningEffort
+	}
+	if len(model.Thinking) > 0 {
+		openaiReq.Thinking = model.Thinking
+	}
 
 	// Transform tools if present
 	if len(anthropicReq.Tools) > 0 {

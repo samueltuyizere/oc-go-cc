@@ -25,12 +25,28 @@ Comprehensive guide to OpenCode Go models with capabilities, costs, and routing 
 
 ⚠️ **Critical:** Not all models use the same API endpoint! oc-go-cc handles this automatically, but you should know:
 
-| Models                                                                                      | Endpoint                                         | Format                   |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------ |
-| GLM-5, GLM-5.1, Kimi K2.6, Kimi K2.5, MiMo-V2-Pro, MiMo-V2-Omni, Qwen3.5 Plus, Qwen3.6 Plus | `https://opencode.ai/zen/go/v1/chat/completions` | OpenAI-compatible        |
-| **MiniMax M2.5, MiniMax M2.7**                                                              | `https://opencode.ai/zen/go/v1/messages`         | **Anthropic-compatible** |
+| Models                                                                                                            | Endpoint                                         | Format                   |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------ |
+| GLM-5, GLM-5.1, Kimi K2.6, Kimi K2.5, MiMo-V2-Pro, MiMo-V2-Omni, Qwen3.5 Plus, Qwen3.6 Plus, DeepSeek V4 Pro/Flash | `https://opencode.ai/zen/go/v1/chat/completions` | OpenAI-compatible        |
+| **MiniMax M2.5, MiniMax M2.7**                                                                                    | `https://opencode.ai/zen/go/v1/messages`         | **Anthropic-compatible** |
 
 **Why this matters:** MiniMax models expect Anthropic format natively. oc-go-cc detects MiniMax models and routes them to the correct endpoint automatically without transformation. This means MiniMax models work seamlessly with Claude Code.
+
+DeepSeek V4 Pro and Flash are OpenAI-compatible in OpenCode Go. oc-go-cc transforms Claude Code's Anthropic request into OpenAI Chat Completions format, including tools, tool results, thinking history, `reasoning_effort`, and `thinking`.
+
+For Claude Code and OpenCode-style agent workflows, DeepSeek V4 supports max thinking mode with:
+
+```json
+{
+  "model_id": "deepseek-v4-pro",
+  "reasoning_effort": "max",
+  "thinking": {
+    "type": "enabled"
+  }
+}
+```
+
+Use `deepseek-v4-pro` for default, complex, thinking, and long-context routing. Use `deepseek-v4-flash` for fast, background, budget, or subagent-style workloads.
 
 ## Cost-Conscious Routing Strategy
 
@@ -134,6 +150,60 @@ Default → Use Kimi K2.6 (1,850 req/$12, ★★★★★) or Qwen3.6 Plus (3,30
 - **Note:** Uses Anthropic endpoint - oc-go-cc handles this automatically
 
 ### Balanced Models (Quality + Cost)
+
+#### DeepSeek V4 Pro — Agentic Coding + Max Thinking
+
+- **Model ID:** `deepseek-v4-pro`
+- **Endpoint:** **OpenAI-compatible** (`/chat/completions`)
+- **Context:** **~1M tokens**
+- **Quality:** ★★★★★
+- **Best For:**
+  - Claude Code agent workflows
+  - Complex implementation and debugging
+  - Architecture and refactoring
+  - Long-context coding tasks
+  - Max thinking mode
+- **Recommended Config:**
+
+  ```json
+  {
+    "provider": "opencode-go",
+    "model_id": "deepseek-v4-pro",
+    "temperature": 0.1,
+    "max_tokens": 8192,
+    "reasoning_effort": "max",
+    "thinking": {
+      "type": "enabled"
+    }
+  }
+  ```
+
+#### DeepSeek V4 Flash — Fast Agent Workloads
+
+- **Model ID:** `deepseek-v4-flash`
+- **Endpoint:** **OpenAI-compatible** (`/chat/completions`)
+- **Context:** **~1M tokens**
+- **Quality:** ★★★★☆
+- **Best For:**
+  - Fast routing
+  - Background tasks
+  - Budget routing
+  - Subagent-style work
+  - Fallback for DeepSeek V4 Pro
+- **Recommended Config:**
+
+  ```json
+  {
+    "provider": "opencode-go",
+    "model_id": "deepseek-v4-flash",
+    "temperature": 0.1,
+    "max_tokens": 4096,
+    "reasoning_effort": "max",
+    "thinking": {
+      "type": "enabled"
+    }
+  }
+  ```
 
 #### Qwen3.6 Plus — Cost-Effective General Coding ⭐ RECOMMENDED DEFAULT
 

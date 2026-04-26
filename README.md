@@ -175,10 +175,35 @@ That's it. Claude Code will now route all requests through oc-go-cc to OpenCode 
 | `content: [{"type":"text","text":"..."}]`                    | `content: "..."`                        |
 | `tool_use` content blocks                                    | `tool_calls` array                      |
 | `tool_result` content blocks                                 | `role: "tool"` messages                 |
-| `thinking` content blocks                                    | Skipped (no equivalent)                 |
+| `thinking` content blocks                                    | `reasoning_content`                     |
 | `stop_reason: "end_turn"`                                    | `finish_reason: "stop"`                 |
 | `stop_reason: "tool_use"`                                    | `finish_reason: "tool_calls"`           |
 | SSE `message_start` / `content_block_delta` / `message_stop` | SSE `role` / `delta.content` / `[DONE]` |
+
+### DeepSeek V4 Thinking Mode
+
+DeepSeek V4 Pro and Flash use the OpenAI-compatible `/chat/completions` endpoint through OpenCode Go. They support thinking mode and configurable reasoning effort.
+
+For Claude Code and other agentic coding workflows, configure DeepSeek V4 models with:
+
+```json
+{
+  "provider": "opencode-go",
+  "model_id": "deepseek-v4-pro",
+  "max_tokens": 8192,
+  "reasoning_effort": "max",
+  "thinking": {
+    "type": "enabled"
+  }
+}
+```
+
+`oc-go-cc` forwards these fields to OpenCode Go as OpenAI Chat Completions parameters:
+
+- `reasoning_effort`: controls DeepSeek V4 thinking effort (`high` or `max`)
+- `thinking`: enables or disables DeepSeek V4 thinking mode
+
+DeepSeek V4 thinking responses are returned as OpenAI `reasoning_content` and transformed back into Anthropic `thinking` blocks for Claude Code.
 
 ## Configuration
 
@@ -221,6 +246,16 @@ Override with `OC_GO_CC_CONFIG` environment variable.
       "temperature": 0.7,
       "max_tokens": 16384,
       "context_threshold": 60000
+    },
+    "deepseek_v4_max": {
+      "provider": "opencode-go",
+      "model_id": "deepseek-v4-pro",
+      "temperature": 0.1,
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": {
+        "type": "enabled"
+      }
     }
   },
 
@@ -272,6 +307,8 @@ The proxy automatically detects the type of request and routes to the appropriat
 
 **📖 See [MODELS.md](MODELS.md) for detailed model capabilities, costs, and routing recommendations.**
 
+DeepSeek V4 users can set any scenario model to `deepseek-v4-pro` or `deepseek-v4-flash`. For deterministic max thinking, add `reasoning_effort: "max"` and `thinking: {"type":"enabled"}` to that scenario's model config and fallback entries.
+
 #### Routing in Detail:
 
 | Scenario         | Trigger                                                                      | Config Key            | Default Model  |
@@ -310,11 +347,13 @@ Quick reference:
 | `qwen3.6-plus` | ★★★☆☆   | 128K    | ~3,300         | Cost-effective general coding         |
 | `minimax-m2.7` | ★★★☆☆   | **1M**  | ~3,400         | **Long context specialist**           |
 | `minimax-m2.5` | ★★☆☆☆   | **1M**  | ~6,300         | Long context on a budget              |
+| `deepseek-v4-pro` | ★★★★★ | **1M** | varies | Agentic coding, max thinking, long context |
+| `deepseek-v4-flash` | ★★★★☆ | **1M** | varies | Fast agent tasks, background/subagent work |
 | `qwen3.5-plus` | ★★☆☆☆   | 128K    | ~10,200        | **Cheapest** - background tasks       |
 
 > **💡 Tip:** The cost column shows approximate requests per 5-hour block ($12). Qwen3.5 Plus gives you ~10x more requests than GLM-5.1!
 
-> **⚠️ Important:** MiniMax M2.5 and M2.7 use the **Anthropic-compatible** `/v1/messages` endpoint natively. oc-go-cc automatically routes these models to the correct endpoint and skips the OpenAI transformation, so they work seamlessly with Claude Code. See [MODELS.md](MODELS.md) for details.
+> **⚠️ Important:** MiniMax M2.5 and M2.7 use the **Anthropic-compatible** `/v1/messages` endpoint natively. DeepSeek V4 Pro and Flash use the **OpenAI-compatible** `/chat/completions` endpoint and support `reasoning_effort` plus `thinking` for max thinking mode. See [MODELS.md](MODELS.md) for details.
 
 ## CLI Commands
 
