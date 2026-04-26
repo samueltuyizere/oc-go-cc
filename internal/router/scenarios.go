@@ -180,12 +180,15 @@ func hasBackgroundPattern(messages []MessageContent) bool {
 }
 
 // getLongContextThreshold returns the configured threshold or a sensible default.
-// Default is 60K tokens to trigger MiniMax (1M context) vs regular models (128-256K).
+// Default is 100K tokens to trigger long-context models (1M context) vs regular models (128-256K).
 func getLongContextThreshold(cfg *config.Config) int {
+	if cfg == nil {
+		return 100000 // Default: 100K tokens
+	}
 	if lc, ok := cfg.Models["long_context"]; ok && lc.ContextThreshold > 0 {
 		return lc.ContextThreshold
 	}
-	return 60000 // Default: 60K tokens
+	return 100000 // Default: 100K tokens
 }
 
 // RouteForStreaming selects a model optimized for streaming latency.
@@ -198,8 +201,10 @@ func RouteForStreaming(messages []MessageContent, tokenCount int, cfg *config.Co
 	threshold := getLongContextThreshold(cfg)
 	if tokenCount > threshold {
 		model := "long_context"
-		if lc, ok := cfg.Models["long_context"]; ok && lc.ModelID != "" {
-			model = lc.ModelID
+		if cfg != nil {
+			if lc, ok := cfg.Models["long_context"]; ok && lc.ModelID != "" {
+				model = lc.ModelID
+			}
 		}
 		return ScenarioResult{
 			Scenario:   ScenarioLongContext,
