@@ -197,9 +197,9 @@ func RouteForStreaming(messages []MessageContent, tokenCount int, cfg *config.Co
 
 	threshold := getLongContextThreshold(cfg)
 	if tokenCount > threshold {
-		model := cfg.Models["long_context"].ModelID
-		if model == "" {
-			model = "long_context"
+		model := "long_context"
+		if lc, ok := cfg.Models["long_context"]; ok && lc.ModelID != "" {
+			model = lc.ModelID
 		}
 		return ScenarioResult{
 			Scenario:   ScenarioLongContext,
