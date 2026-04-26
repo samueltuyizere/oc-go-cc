@@ -195,12 +195,16 @@ func RouteForStreaming(messages []MessageContent, tokenCount int, cfg *config.Co
 	// For streaming, use simpler models that have better TTFT
 	// Complex models (GLM, Kimi) are too slow for streaming with many tools
 
-	if tokenCount > 30000 {
-		// High token count - use MiniMax for streaming (supports 1M context, decent TTFT)
+	threshold := getLongContextThreshold(cfg)
+	if tokenCount > threshold {
+		model := cfg.Models["long_context"].ModelID
+		if model == "" {
+			model = "long_context"
+		}
 		return ScenarioResult{
 			Scenario:   ScenarioLongContext,
 			TokenCount: tokenCount,
-			Reason:     "high token count streaming - use MiniMax for acceptable TTFT",
+			Reason:     fmt.Sprintf("high token count streaming (%d > %d) - use %s for acceptable TTFT", tokenCount, threshold, model),
 		}
 	}
 

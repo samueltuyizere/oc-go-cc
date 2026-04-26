@@ -1,6 +1,7 @@
 package router
 
 import (
+	"strings"
 	"testing"
 
 	"oc-go-cc/internal/config"
@@ -109,5 +110,54 @@ func TestDetectScenario_LongContextTakesPriority(t *testing.T) {
 	result := DetectScenario(messages, 70000, mockConfig())
 	if result.Scenario != ScenarioLongContext {
 		t.Errorf("Expected ScenarioLongContext, got %s", result.Scenario)
+	}
+}
+
+func TestRouteForStreaming_RespectsConfiguredThreshold(t *testing.T) {
+	messages := []MessageContent{
+		{Role: "user", Content: "Hello"},
+	}
+	cfg := &config.Config{
+		Models: map[string]config.ModelConfig{
+			"long_context": {
+				ModelID:          "deepseek-v4-flash",
+				ContextThreshold: 256000,
+			},
+		},
+	}
+
+	// Below threshold should NOT trigger long_context
+	result := RouteForStreaming(messages, 40955, cfg)
+	if result.Scenario == ScenarioLongContext {
+		t.Errorf("Expected NOT ScenarioLongContext for 40955 tokens with threshold 256000, got %s", result.Scenario)
+	}
+
+	// Above threshold should trigger long_context
+	result = RouteForStreaming(messages, 300000, cfg)
+	if result.Scenario != ScenarioLongContext {
+		t.Errorf("Expected ScenarioLongContext for 300000 tokens with threshold 256000, got %s", result.Scenario)
+	}
+	if !strings.Contains(result.Reason, "deepseek-v4-flash") {
+		t.Errorf("Expected reason to mention configured model 'deepseek-v4-flash', got: %s", result.Reason)
+	}
+}
+
+func TestRouteForStreaming_UsesDefaultThresholdWhenNotConfigured(t *testing.T) {
+	messages := []MessageContent{
+		{Role: "user", Content: "Hello"},
+	}
+	cfg := &config.Config{
+		Models: map[string]config.ModelConfig{},
+	}
+
+	// Default threshold is 60000
+	result := RouteForStreaming(messages, 50000, cfg)
+	if result.Scenario == ScenarioLongContext {
+		t.Errorf("Expected NOT ScenarioLongContext for 50000 tokens with default threshold, got %s", result.Scenario)
+	}
+
+	result = RouteForStreaming(messages, 70000, cfg)
+	if result.Scenario != ScenarioLongContext {
+		t.Errorf("Expected ScenarioLongContext for 70000 tokens with default threshold, got %s", result.Scenario)
 	}
 }
