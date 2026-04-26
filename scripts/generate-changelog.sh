@@ -32,24 +32,27 @@ MAX_TOKENS="${OPENROUTER_MAX_TOKENS:-2000}"
 echo "Using model: $OPENROUTER_MODEL" >&2
 
 # Determine the range
+# Usage:
+#   ./generate-changelog.sh v0.0.13   → changelog for v0.0.12..v0.0.13
+#   ./generate-changelog.sh           → changelog for latest-tag..HEAD (CI mode)
 if [ $# -ge 1 ]; then
-  TAG="$1"
-  PREVIOUS_TAG=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo "")
+  CURRENT_REF="$1"
+  PREVIOUS_TAG=$(git describe --tags --abbrev=0 "$CURRENT_REF^" 2>/dev/null || echo "")
 else
-  TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-  if [ -z "$TAG" ]; then
+  PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+  CURRENT_REF="HEAD"
+  if [ -z "$PREVIOUS_TAG" ]; then
     echo "Error: No tags found in repository" >&2
     exit 1
   fi
-  PREVIOUS_TAG=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo "")
 fi
 
 if [ -n "$PREVIOUS_TAG" ]; then
-  RANGE="${PREVIOUS_TAG}..${TAG}"
-  echo "Generating changelog from $PREVIOUS_TAG to $TAG" >&2
+  RANGE="${PREVIOUS_TAG}..${CURRENT_REF}"
+  echo "Generating changelog from $PREVIOUS_TAG to $CURRENT_REF" >&2
 else
-  RANGE="$TAG"
-  echo "Generating changelog up to $TAG (first release)" >&2
+  RANGE="$CURRENT_REF"
+  echo "Generating changelog up to $CURRENT_REF (first release)" >&2
 fi
 
 # Collect commit messages
@@ -60,7 +63,7 @@ if [ -z "$COMMITS" ]; then
 fi
 
 # Collect file changes summary (not full diff to stay within token limits)
-FILE_CHANGES=$(git diff --stat "$RANGE" 2>/dev/null || git diff-tree --no-commit-id --name-status -r "$TAG" 2>/dev/null || true)
+FILE_CHANGES=$(git diff --stat "$RANGE" 2>/dev/null || git diff-tree --no-commit-id --name-status -r "$CURRENT_REF" 2>/dev/null || true)
 
 # Build the prompt
 PROMPT=$(cat <<'PROMPT_EOF'

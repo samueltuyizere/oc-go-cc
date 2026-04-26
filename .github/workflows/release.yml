@@ -116,83 +116,20 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq jq curl
 
-          # Configuration with defaults
-          MODEL="${OPENROUTER_MODEL:-openai/gpt-4o-mini}"
-          TEMP="${OPENROUTER_TEMPERATURE:-0.3}"
-          TOKENS="${OPENROUTER_MAX_TOKENS:-2000}"
-
-          echo "Using OpenRouter model: $MODEL"
-
-          # Generate changelog for commits since previous tag
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
           if [ -n "$PREVIOUS_TAG" ]; then
-            echo "Generating AI changelog from $PREVIOUS_TAG to ${{ steps.version.outputs.tag }}"
-
-            COMMITS=$(git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"%H%n%s%n%b%n---COMMIT_SEP---")
-            FILE_CHANGES=$(git diff --stat "${PREVIOUS_TAG}..HEAD")
-
-            PROMPT="You are a technical writer generating release notes for a Go proxy server project (oc-go-cc).
-
-            Analyze the provided git commits and file changes, then generate a well-structured
-            changelog in Markdown format. Follow these guidelines:
-
-            1. Start with a brief summary paragraph (2-3 sentences) describing the overall theme of this release
-            2. Group changes into sections with these exact headers:
-               - **New Features** - New capabilities, enhancements, additions
-               - **Bug Fixes** - Fixes for reported or discovered issues
-               - **Improvements** - Performance, reliability, or code quality improvements
-               - **Documentation** - README, docs, comments, config updates
-               - **Chores** - Build, CI/CD, dependency updates, refactoring
-            3. Each bullet should be concise but descriptive (one line)
-            4. Mention breaking changes prominently with a warning emoji Breaking Changes section at the top
-            5. Use present tense, imperative mood (e.g., Add feature not Added feature)
-            6. Keep it technical but accessible - target audience is developers using this tool
-
-            Format output as clean Markdown without any preamble or explanation. Do not wrap the entire response in a code block."
-
-            USER_CONTENT="Git commits since ${PREVIOUS_TAG}:\n\n${COMMITS}\n\nFiles changed:\n\n${FILE_CHANGES}"
-
-            # Truncate if too long (~4 chars per token)
-            MAX_CHARS=12000
-            if [ "${#USER_CONTENT}" -gt "$MAX_CHARS" ]; then
-              USER_CONTENT="${USER_CONTENT:0:MAX_CHARS}\n\n[...truncated for length...]"
-            fi
-
-            RESPONSE=$(curl -s -L -X POST "https://openrouter.ai/api/v1/chat/completions" \
-              -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg prompt "$PROMPT" \
-                --arg user "$USER_CONTENT" \
-                --arg model "$MODEL" \
-                --arg temp "$TEMP" \
-                --arg tokens "$TOKENS" \
-                '{
-                  model: $model,
-                  messages: [
-                    {role: "system", content: $prompt},
-                    {role: "user", content: $user}
-                  ],
-                  temperature: ($temp | tonumber),
-                  max_tokens: ($tokens | tonumber)
-                }' \
-              )" \
-            )
-
-            CHANGELOG=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
-
-            if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "null" ]; then
-              echo "Warning: AI changelog generation failed, using commit list instead" >&2
-              echo "API response: $RESPONSE" >&2
-              CHANGELOG="## Commits\n\n$(git log \"${PREVIOUS_TAG}..HEAD\" --pretty=format:'- %s')"
+            echo "Generating AI changelog from $PREVIOUS_TAG to HEAD"
+            if ./scripts/generate-changelog.sh > changelog.md 2>/dev/null; then
+              echo "AI changelog generated successfully"
+            else
+              echo "Warning: AI changelog generation failed, using commit list instead"
+              git log "${PREVIOUS_TAG}..HEAD" --pretty=format:'- %s' > changelog.md
             fi
           else
             echo "No previous tag found, using commit list"
-            CHANGELOG="## Commits\n\n$(git log --pretty=format:'- %s' -20)"
+            git log --pretty=format:'- %s' -20 > changelog.md
           fi
-
-          echo "$CHANGELOG" > changelog.md
           cat changelog.md
 
       # GITHUB_TOKEN works here — same repo
