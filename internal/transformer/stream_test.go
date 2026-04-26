@@ -27,9 +27,9 @@ func newMockResponseWriter() *mockResponseWriter {
 }
 
 func (m *mockResponseWriter) Header() http.Header         { return m.header }
-func (m *mockResponseWriter) Write(p []byte) (int, error)  { return m.buf.Write(p) }
-func (m *mockResponseWriter) WriteHeader(statusCode int)   { m.status = statusCode }
-func (m *mockResponseWriter) Flush()                       {}
+func (m *mockResponseWriter) Write(p []byte) (int, error) { return m.buf.Write(p) }
+func (m *mockResponseWriter) WriteHeader(statusCode int)  { m.status = statusCode }
+func (m *mockResponseWriter) Flush()                      {}
 
 // sseLines builds raw SSE body from a list of data payloads.
 func sseLines(lines ...string) io.ReadCloser {
