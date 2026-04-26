@@ -163,61 +163,6 @@ func (h *StreamHandler) processSSELine(
 		return nil
 	}
 
-	// Fast path: check if this is a reasoning content chunk without full JSON parsing
-	// Look for "delta":{"reasoning_content":" pattern
-	if idx := strings.Index(data, `"delta":{"reasoning_content":"`); idx != -1 {
-		// Extract reasoning content directly
-		start := idx + len(`"delta":{"reasoning_content":"`)
-		end := strings.Index(data[start:], `"`)
-		if end != -1 {
-			reasoning := data[start : start+end]
-			if reasoning != "" {
-				if !*reasoningStarted {
-					// If text was already started, close it first
-					if *contentStarted {
-						stopEvent := types.MessageEvent{
-							Type:  "content_block_stop",
-							Index: contentIndex,
-						}
-						if err := writeSSEEvent(w, stopEvent); err != nil {
-							return ErrClientDisconnected
-						}
-						*contentIndex++
-						*contentStarted = false
-					}
-					*reasoningStarted = true
-					// Send content_block_start
-					startEvent := types.MessageEvent{
-						Type:  "content_block_start",
-						Index: contentIndex,
-						Delta: &types.Delta{
-							Type: "thinking",
-						},
-					}
-					if err := writeSSEEvent(w, startEvent); err != nil {
-						return ErrClientDisconnected
-					}
-				}
-
-				// Send content_block_delta
-				delta := types.Delta{
-					Type:     "thinking_delta",
-					Thinking: reasoning,
-				}
-				event := types.MessageEvent{
-					Type:  "content_block_delta",
-					Index: contentIndex,
-					Delta: &delta,
-				}
-				if err := writeSSEEvent(w, event); err != nil {
-					return ErrClientDisconnected
-				}
-				flusher.Flush()
-			}
-			return nil
-		}
-	}
-
 	// Fast path: check if this is a content chunk without full JSON parsing
 	// Look for "delta":{"content":" pattern
 	if idx := strings.Index(data, `"delta":{"content":"`); idx != -1 {
