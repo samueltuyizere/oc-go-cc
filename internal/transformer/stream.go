@@ -70,6 +70,7 @@ func (h *StreamHandler) ProxyStream(
 	contentIndex := 0
 	var lineBuf bytes.Buffer
 	contentStarted := false
+	reasoningStarted := false
 
 	// Read in larger chunks for efficiency, then parse lines
 	readBuf := make([]byte, 4096)
@@ -93,7 +94,7 @@ func (h *StreamHandler) ProxyStream(
 					lineBuf.Reset()
 
 					// Process complete line
-					if err := h.processSSELine(w, flusher, line, &contentIndex, &contentStarted, originalModel); err != nil {
+					if err := h.processSSELine(w, flusher, line, &contentIndex, &contentStarted, &reasoningStarted, originalModel); err != nil {
 						return err
 					}
 				} else {
@@ -106,7 +107,7 @@ func (h *StreamHandler) ProxyStream(
 			// Process any remaining data in buffer
 			if lineBuf.Len() > 0 {
 				line := lineBuf.String()
-				if err := h.processSSELine(w, flusher, line, &contentIndex, &contentStarted, originalModel); err != nil {
+				if err := h.processSSELine(w, flusher, line, &contentIndex, &contentStarted, &reasoningStarted, originalModel); err != nil {
 					return err
 				}
 			}
@@ -137,6 +138,7 @@ func (h *StreamHandler) processSSELine(
 	line string,
 	contentIndex *int,
 	contentStarted *bool,
+	reasoningStarted *bool,
 	originalModel string,
 ) error {
 	line = strings.TrimSpace(line)
@@ -161,6 +163,61 @@ func (h *StreamHandler) processSSELine(
 		return nil
 	}
 
+	// Fast path: check if this is a reasoning content chunk without full JSON parsing
+	// Look for "delta":{"reasoning_content":" pattern
+	if idx := strings.Index(data, `"delta":{"reasoning_content":"`); idx != -1 {
+		// Extract reasoning content directly
+		start := idx + len(`"delta":{"reasoning_content":"`)
+		end := strings.Index(data[start:], `"`)
+		if end != -1 {
+			reasoning := data[start : start+end]
+			if reasoning != "" {
+				if !*reasoningStarted {
+					// If text was already started, close it first
+					if *contentStarted {
+						stopEvent := types.MessageEvent{
+							Type:  "content_block_stop",
+							Index: contentIndex,
+						}
+						if err := writeSSEEvent(w, stopEvent); err != nil {
+							return ErrClientDisconnected
+						}
+						*contentIndex++
+						*contentStarted = false
+					}
+					*reasoningStarted = true
+					// Send content_block_start
+					startEvent := types.MessageEvent{
+						Type:  "content_block_start",
+						Index: contentIndex,
+						Delta: &types.Delta{
+							Type: "thinking",
+						},
+					}
+					if err := writeSSEEvent(w, startEvent); err != nil {
+						return ErrClientDisconnected
+					}
+				}
+
+				// Send content_block_delta
+				delta := types.Delta{
+					Type:     "thinking_delta",
+					Thinking: reasoning,
+				}
+				event := types.MessageEvent{
+					Type:  "content_block_delta",
+					Index: contentIndex,
+					Delta: &delta,
+				}
+				if err := writeSSEEvent(w, event); err != nil {
+					return ErrClientDisconnected
+				}
+				flusher.Flush()
+			}
+			return nil
+		}
+	}
+
 	// Fast path: check if this is a content chunk without full JSON parsing
 	// Look for "delta":{"content":" pattern
 	if idx := strings.Index(data, `"delta":{"content":"`); idx != -1 {
@@ -171,6 +228,18 @@ func (h *StreamHandler) processSSELine(
 			content := data[start : start+end]
 			if content != "" {
 				if !*contentStarted {
+					// If reasoning was already started, close it first
+					if *reasoningStarted {
+						stopEvent := types.MessageEvent{
+							Type:  "content_block_stop",
+							Index: contentIndex,
+						}
+						if err := writeSSEEvent(w, stopEvent); err != nil {
+							return ErrClientDisconnected
+						}
+						*contentIndex++
+						*reasoningStarted = false
+					}
 					*contentStarted = true
 					// Send content_block_start
 					startEvent := types.MessageEvent{
@@ -206,13 +275,15 @@ func (h *StreamHandler) processSSELine(
 
 	// Check for finish_reason - need to send stop events
 	if strings.Contains(data, `"finish_reason":`) && !strings.Contains(data, `"finish_reason":null`) {
-		// Send content_block_stop
-		stopEvent := types.MessageEvent{
-			Type:  "content_block_stop",
-			Index: contentIndex,
-		}
-		if err := writeSSEEvent(w, stopEvent); err != nil {
-			return ErrClientDisconnected
+		// Close any open content block (reasoning or text)
+		if *contentStarted || *reasoningStarted {
+			stopEvent := types.MessageEvent{
+				Type:  "content_block_stop",
+				Index: contentIndex,
+			}
+			if err := writeSSEEvent(w, stopEvent); err != nil {
+				return ErrClientDisconnected
+			}
 		}
 
 		// Send message_delta with stop_reason
@@ -242,9 +313,64 @@ func (h *StreamHandler) processSSELine(
 
 	choice := chunk.Choices[0]
 
+	// Handle reasoning content deltas
+	if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+		if !*reasoningStarted {
+			// If text was already started, close it first
+			if *contentStarted {
+				stopEvent := types.MessageEvent{
+					Type:  "content_block_stop",
+					Index: contentIndex,
+				}
+				if err := writeSSEEvent(w, stopEvent); err != nil {
+					return ErrClientDisconnected
+				}
+				*contentIndex++
+				*contentStarted = false
+			}
+			*reasoningStarted = true
+			startEvent := types.MessageEvent{
+				Type:  "content_block_start",
+				Index: contentIndex,
+				Delta: &types.Delta{
+					Type: "thinking",
+				},
+			}
+			if err := writeSSEEvent(w, startEvent); err != nil {
+				return ErrClientDisconnected
+			}
+		}
+
+		delta := types.Delta{
+			Type:     "thinking_delta",
+			Thinking: *choice.Delta.ReasoningContent,
+		}
+		event := types.MessageEvent{
+			Type:  "content_block_delta",
+			Index: contentIndex,
+			Delta: &delta,
+		}
+		if err := writeSSEEvent(w, event); err != nil {
+			return ErrClientDisconnected
+		}
+		flusher.Flush()
+	}
+
 	// Handle text content deltas
 	if choice.Delta.Content != "" {
 		if !*contentStarted {
+			// If reasoning was already started, close it first
+			if *reasoningStarted {
+				stopEvent := types.MessageEvent{
+					Type:  "content_block_stop",
+					Index: contentIndex,
+				}
+				if err := writeSSEEvent(w, stopEvent); err != nil {
+					return ErrClientDisconnected
+				}
+				*contentIndex++
+				*reasoningStarted = false
+			}
 			*contentStarted = true
 			startEvent := types.MessageEvent{
 				Type:  "content_block_start",
@@ -309,12 +435,15 @@ func (h *StreamHandler) processSSELine(
 
 	// Handle finish reason
 	if choice.FinishReason != "" {
-		stopEvent := types.MessageEvent{
-			Type:  "content_block_stop",
-			Index: contentIndex,
-		}
-		if err := writeSSEEvent(w, stopEvent); err != nil {
-			return ErrClientDisconnected
+		// Close any open content block (reasoning or text)
+		if *contentStarted || *reasoningStarted {
+			stopEvent := types.MessageEvent{
+				Type:  "content_block_stop",
+				Index: contentIndex,
+			}
+			if err := writeSSEEvent(w, stopEvent); err != nil {
+				return ErrClientDisconnected
+			}
 		}
 
 		var usage *types.Usage
