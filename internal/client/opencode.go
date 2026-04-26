@@ -62,8 +62,7 @@ func NewOpenCodeClient(cfg config.OpenCodeGoConfig, apiKey string) *OpenCodeClie
 // IsAnthropicModel returns true if the model requires the Anthropic endpoint.
 func IsAnthropicModel(modelID string) bool {
 	switch modelID {
-	case "minimax-m2.5", "minimax-m2.7",
-		"deepseek-v4-pro", "deepseek-v4-flash":
+	case "minimax-m2.5", "minimax-m2.7":
 		return true
 	default:
 		return false
