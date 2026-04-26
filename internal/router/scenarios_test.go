@@ -1,6 +1,7 @@
 package router
 
 import (
+	"strings"
 	"testing"
 
 	"oc-go-cc/internal/config"
@@ -109,5 +110,74 @@ func TestDetectScenario_LongContextTakesPriority(t *testing.T) {
 	result := DetectScenario(messages, 70000, mockConfig())
 	if result.Scenario != ScenarioLongContext {
 		t.Errorf("Expected ScenarioLongContext, got %s", result.Scenario)
+	}
+}
+
+func TestRouteForStreaming_RespectsConfiguredThreshold(t *testing.T) {
+	messages := []MessageContent{
+		{Role: "user", Content: "Hello"},
+	}
+	cfg := &config.Config{
+		Models: map[string]config.ModelConfig{
+			"long_context": {
+				ModelID:          "deepseek-v4-flash",
+				ContextThreshold: 256000,
+			},
+		},
+	}
+
+	// Below threshold should NOT trigger long_context
+	result := RouteForStreaming(messages, 40955, cfg)
+	if result.Scenario == ScenarioLongContext {
+		t.Errorf("Expected NOT ScenarioLongContext for 40955 tokens with threshold 256000, got %s", result.Scenario)
+	}
+
+	// Above threshold should trigger long_context
+	result = RouteForStreaming(messages, 300000, cfg)
+	if result.Scenario != ScenarioLongContext {
+		t.Errorf("Expected ScenarioLongContext for 300000 tokens with threshold 256000, got %s", result.Scenario)
+	}
+	if !strings.Contains(result.Reason, "deepseek-v4-flash") {
+		t.Errorf("Expected reason to mention configured model 'deepseek-v4-flash', got: %s", result.Reason)
+	}
+}
+
+func TestRouteForStreaming_UsesDefaultThresholdWhenNotConfigured(t *testing.T) {
+	messages := []MessageContent{
+		{Role: "user", Content: "Hello"},
+	}
+	cfg := &config.Config{
+		Models: map[string]config.ModelConfig{},
+	}
+
+	// Default threshold is 100000
+	result := RouteForStreaming(messages, 90000, cfg)
+	if result.Scenario == ScenarioLongContext {
+		t.Errorf("Expected NOT ScenarioLongContext for 90000 tokens with default threshold, got %s", result.Scenario)
+	}
+
+	result = RouteForStreaming(messages, 110000, cfg)
+	if result.Scenario != ScenarioLongContext {
+		t.Errorf("Expected ScenarioLongContext for 110000 tokens with default threshold, got %s", result.Scenario)
+	}
+}
+
+func TestRouteForStreaming_NilConfig(t *testing.T) {
+	messages := []MessageContent{
+		{Role: "user", Content: "Hello"},
+	}
+
+	// Default threshold is 100000; nil config should not panic
+	result := RouteForStreaming(messages, 90000, nil)
+	if result.Scenario == ScenarioLongContext {
+		t.Errorf("Expected NOT ScenarioLongContext for 90000 tokens with nil config, got %s", result.Scenario)
+	}
+
+	result = RouteForStreaming(messages, 110000, nil)
+	if result.Scenario != ScenarioLongContext {
+		t.Errorf("Expected ScenarioLongContext for 110000 tokens with nil config, got %s", result.Scenario)
+	}
+	if !strings.Contains(result.Reason, "long_context") {
+		t.Errorf("Expected reason to contain fallback model name 'long_context', got: %s", result.Reason)
 	}
 }
